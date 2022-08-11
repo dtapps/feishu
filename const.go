@@ -7,3 +7,5 @@ const (
 const (
 	logTable = "feishu"
 )
+
+const Version = "1.0.2"
