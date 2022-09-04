@@ -1,11 +1,7 @@
 package feishu
 
 const (
-	apiUrl = "https://open.feishu.cn"
-)
-
-const (
+	apiUrl   = "https://open.feishu.cn"
 	logTable = "feishu"
+	Version  = "1.0.8"
 )
-
-const Version = "1.0.7"
