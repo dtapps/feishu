@@ -2,9 +2,7 @@ package golog
 
 import (
 	"context"
-	"errors"
 	"go.dtapp.net/dorm"
-	"go.dtapp.net/goip"
 	"go.dtapp.net/gorequest"
 	"go.dtapp.net/gotime"
 	"go.dtapp.net/gotrace_id"
@@ -13,137 +11,12 @@ import (
 	"go.mongodb.org/mongo-driver/bson/primitive"
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"os"
-	"runtime"
 )
-
-// ApiMongoClientConfig 接口实例配置
-type ApiMongoClientConfig struct {
-	MongoClientFun apiMongoClientFun // 日志配置
-	Debug          bool              // 日志开关
-	ZapLog         *ZapLog           // 日志服务
-	CurrentIp      string            // 当前ip
-}
-
-// NewApiMongoClient 创建接口实例化
-// client 数据库服务
-// databaseName 库名
-// collectionName 表名
-func NewApiMongoClient(config *ApiMongoClientConfig) (*ApiClient, error) {
-
-	var ctx = context.Background()
-
-	c := &ApiClient{}
-
-	c.zapLog = config.ZapLog
-
-	c.logDebug = config.Debug
-
-	if config.CurrentIp == "" {
-		config.CurrentIp = goip.GetOutsideIp(ctx)
-	}
-	if config.CurrentIp != "" && config.CurrentIp != "0.0.0.0" {
-		c.currentIp = config.CurrentIp
-	}
-
-	client, databaseName, collectionName := config.MongoClientFun()
-
-	if client == nil || client.Db == nil {
-		return nil, errors.New("没有设置驱动")
-	}
-
-	c.mongoClient = client
-
-	if databaseName == "" {
-		return nil, errors.New("没有设置库名")
-	}
-	c.mongoConfig.databaseName = databaseName
-
-	if collectionName == "" {
-		return nil, errors.New("没有设置表名")
-	}
-	c.mongoConfig.collectionName = collectionName
-
-	hostname, _ := os.Hostname()
-
-	c.mongoConfig.hostname = hostname
-	c.mongoConfig.insideIp = goip.GetInsideIp(ctx)
-	c.mongoConfig.goVersion = runtime.Version()
-
-	c.log.mongo = true
-
-	// 创建时间序列集合
-	c.mongoCreateCollection(ctx)
-
-	// 创建索引
-	c.mongoCreateIndexes(ctx)
-
-	return c, nil
-}
-
-// 创建时间序列集合
-func (c *ApiClient) mongoCreateCollection(ctx context.Context) {
-	var commandResult bson.M
-	commandErr := c.mongoClient.Db.Database(c.mongoConfig.databaseName).RunCommand(ctx, bson.D{{
-		"listCollections", 1,
-	}}).Decode(&commandResult)
-	if commandErr != nil {
-		c.zapLog.WithLogger().Sugar().Errorf("检查时间序列集合：%s", commandErr)
-	} else {
-		err := c.mongoClient.Db.Database(c.mongoConfig.databaseName).CreateCollection(ctx, c.mongoConfig.collectionName, options.CreateCollection().SetTimeSeriesOptions(options.TimeSeries().SetTimeField("log_time")))
-		if err != nil {
-			c.zapLog.WithLogger().Sugar().Errorf("创建时间序列集合：%s", err)
-		}
-	}
-}
-
-// 创建索引
-func (c *ApiClient) mongoCreateIndexes(ctx context.Context) {
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"trace_id", 1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"log_time", -1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"request_time", -1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"request_method", 1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"response_status_code", 1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"response_time", -1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"system_host_name", 1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"system_inside_ip", 1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"system_os", -1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"system_arch", -1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"system_cpu_quantity", 1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"go_version", -1},
-	}}))
-	c.zapLog.WithLogger().Sugar().Infof(c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).Indexes().CreateOne(ctx, mongo.IndexModel{Keys: bson.D{
-		{"sdk_version", -1},
-	}}))
-}
 
 // 模型结构体
 type apiMongolLog struct {
 	LogId                 primitive.ObjectID `json:"log_id,omitempty" bson:"_id,omitempty"`                                      //【记录】编号
-	LogTime               primitive.DateTime `json:"log_time,omitempty" bson:"log_time,omitempty"`                               //【记录】时间
+	LogTime               primitive.DateTime `json:"log_time,omitempty" bson:"log_time"`                                         //【记录】时间
 	TraceId               string             `json:"trace_id,omitempty" bson:"trace_id,omitempty"`                               //【记录】跟踪编号
 	RequestTime           dorm.BsonTime      `json:"request_time,omitempty" bson:"request_time,omitempty"`                       //【请求】时间
 	RequestUri            string             `json:"request_uri,omitempty" bson:"request_uri,omitempty"`                         //【请求】链接
@@ -162,35 +35,50 @@ type apiMongolLog struct {
 	SystemInsideIp        string             `json:"system_inside_ip,omitempty" bson:"system_inside_ip,omitempty"`               //【系统】内网ip
 	SystemOs              string             `json:"system_os,omitempty" bson:"system_os,omitempty"`                             //【系统】系统类型
 	SystemArch            string             `json:"system_arch,omitempty" bson:"system_arch,omitempty"`                         //【系统】系统架构
-	SystemCpuQuantity     int                `json:"system_cpu_quantity,omitempty" bson:"system_cpu_quantity,omitempty"`         //【系统】CPU核数
 	GoVersion             string             `json:"go_version,omitempty" bson:"go_version,omitempty"`                           //【程序】Go版本
 	SdkVersion            string             `json:"sdk_version,omitempty" bson:"sdk_version,omitempty"`                         //【程序】Sdk版本
+}
+
+// 创建时间序列集合
+func (c *ApiClient) mongoCreateCollection(ctx context.Context) {
+	err := c.mongoClient.Database(c.mongoConfig.databaseName).CreateCollection(ctx, c.mongoConfig.collectionName, options.CreateCollection().SetTimeSeriesOptions(options.TimeSeries().SetTimeField("log_time")))
+	if err != nil {
+		c.zapLog.WithTraceId(ctx).Sugar().Errorf("创建时间序列集合：%s", err)
+	}
+}
+
+// 创建索引
+func (c *ApiClient) mongoCreateIndexes(ctx context.Context) {
+	indexes, err := c.mongoClient.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).CreateManyIndexes(ctx, []mongo.IndexModel{
+		{
+			Keys: bson.D{{
+				Key:   "log_time",
+				Value: -1,
+			}},
+		}})
+	if err != nil {
+		c.zapLog.WithTraceId(ctx).Sugar().Errorf("创建索引：%s", err)
+	}
+	c.zapLog.WithTraceId(ctx).Sugar().Infof("创建索引：%s", indexes)
 }
 
 // 记录日志
 func (c *ApiClient) mongoRecord(ctx context.Context, mongoLog apiMongolLog) (err error) {
 
-	mongoLog.SystemHostName = c.mongoConfig.hostname     //【系统】主机名
-	mongoLog.SystemInsideIp = c.mongoConfig.insideIp     //【系统】内网ip
-	mongoLog.GoVersion = c.mongoConfig.goVersion         //【程序】Go版本
+	mongoLog.SystemHostName = c.config.systemHostName    //【系统】主机名
+	mongoLog.SystemInsideIp = c.config.systemInsideIp    //【系统】内网ip
+	mongoLog.GoVersion = c.config.goVersion              //【程序】Go版本
 	mongoLog.TraceId = gotrace_id.GetTraceIdContext(ctx) //【记录】跟踪编号
-	mongoLog.RequestIp = c.currentIp                     //【请求】请求Ip
-	mongoLog.SystemOs = c.config.os                      //【系统】系统类型
-	mongoLog.SystemArch = c.config.arch                  //【系统】系统架构
-	mongoLog.SystemCpuQuantity = c.config.maxProCs       //【系统】CPU核数
+	mongoLog.RequestIp = c.config.systemOutsideIp        //【请求】请求Ip
+	mongoLog.SystemOs = c.config.systemOs                //【系统】系统类型
+	mongoLog.SystemArch = c.config.systemArch            //【系统】系统架构
 	mongoLog.LogId = primitive.NewObjectID()             //【记录】编号
 
-	_, err = c.mongoClient.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).InsertOne(mongoLog)
+	_, err = c.mongoClient.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).InsertOne(ctx, mongoLog)
 	if err != nil {
-		c.zapLog.WithTraceId(ctx).Sugar().Errorf("[golog.api.mongoRecord]：%s", err)
+		c.zapLog.WithTraceId(ctx).Sugar().Errorf("记录日志失败：%s", err)
 	}
-
 	return err
-}
-
-// MongoQuery 查询
-func (c *ApiClient) MongoQuery(ctx context.Context) *mongo.Collection {
-	return c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName)
 }
 
 // MongoDelete 删除
@@ -199,11 +87,11 @@ func (c *ApiClient) MongoDelete(ctx context.Context, hour int64) (*mongo.DeleteR
 	return c.mongoClient.Db.Database(c.mongoConfig.databaseName).Collection(c.mongoConfig.collectionName).DeleteMany(ctx, filter)
 }
 
-// MongoMiddleware 中间件
-func (c *ApiClient) MongoMiddleware(ctx context.Context, request gorequest.Response, sdkVersion string) {
+// 中间件
+func (c *ApiClient) mongoMiddleware(ctx context.Context, request gorequest.Response, sdkVersion string) {
 	data := apiMongolLog{
 		LogTime:               primitive.NewDateTimeFromTime(request.RequestTime), //【记录】时间
-		RequestTime:           dorm.BsonTime(request.RequestTime),                 //【请求】时间
+		RequestTime:           dorm.NewBsonTimeFromTime(request.RequestTime),      //【请求】时间
 		RequestUri:            request.RequestUri,                                 //【请求】链接
 		RequestUrl:            gourl.UriParse(request.RequestUri).Url,             //【请求】链接
 		RequestApi:            gourl.UriParse(request.RequestUri).Path,            //【请求】接口
@@ -213,36 +101,36 @@ func (c *ApiClient) MongoMiddleware(ctx context.Context, request gorequest.Respo
 		ResponseHeader:        request.ResponseHeader,                             //【返回】头部
 		ResponseStatusCode:    request.ResponseStatusCode,                         //【返回】状态码
 		ResponseContentLength: request.ResponseContentLength,                      //【返回】大小
-		ResponseTime:          dorm.BsonTime(request.ResponseTime),                //【返回】时间
+		ResponseTime:          dorm.NewBsonTimeFromTime(request.ResponseTime),     //【返回】时间
 		SdkVersion:            sdkVersion,                                         //【程序】Sdk版本
 	}
-	if request.ResponseHeader.Get("Content-Type") == "image/jpeg" || request.ResponseHeader.Get("Content-Type") == "image/png" || request.ResponseHeader.Get("Content-Type") == "image/jpg" {
-		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddleware.type]：%s %s", data.RequestUri, request.ResponseHeader.Get("Content-Type"))
+	if request.HeaderIsImg() {
+		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddleware.type]：%s %s", data.RequestUri, request.ResponseHeader.Get("Content-Type"))
 	} else {
 		if len(request.ResponseBody) > 0 {
 			data.ResponseBody = dorm.JsonDecodeNoError(request.ResponseBody) //【返回】内容
 		} else {
 			if c.logDebug {
-				c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddleware.len]：%s %s", data.RequestUri, request.ResponseBody)
+				c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddleware.len]：%s %s", data.RequestUri, request.ResponseBody)
 			}
 		}
 	}
 
 	if c.logDebug {
-		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddleware.data]：%+v", data)
+		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddleware.data]：%+v", data)
 	}
 
 	err := c.mongoRecord(ctx, data)
 	if err != nil {
-		c.zapLog.WithTraceId(ctx).Sugar().Errorf("[golog.api.MongoMiddleware]：%s", err.Error())
+		c.zapLog.WithTraceId(ctx).Sugar().Errorf("[golog.api.mongoMiddleware]：%s", err.Error())
 	}
 }
 
-// MongoMiddlewareXml 中间件
-func (c *ApiClient) MongoMiddlewareXml(ctx context.Context, request gorequest.Response, sdkVersion string) {
+// 中间件
+func (c *ApiClient) mongoMiddlewareXml(ctx context.Context, request gorequest.Response, sdkVersion string) {
 	data := apiMongolLog{
 		LogTime:               primitive.NewDateTimeFromTime(request.RequestTime), //【记录】时间
-		RequestTime:           dorm.BsonTime(request.RequestTime),                 //【请求】时间
+		RequestTime:           dorm.NewBsonTimeFromTime(request.RequestTime),      //【请求】时间
 		RequestUri:            request.RequestUri,                                 //【请求】链接
 		RequestUrl:            gourl.UriParse(request.RequestUri).Url,             //【请求】链接
 		RequestApi:            gourl.UriParse(request.RequestUri).Path,            //【请求】接口
@@ -252,36 +140,36 @@ func (c *ApiClient) MongoMiddlewareXml(ctx context.Context, request gorequest.Re
 		ResponseHeader:        request.ResponseHeader,                             //【返回】头部
 		ResponseStatusCode:    request.ResponseStatusCode,                         //【返回】状态码
 		ResponseContentLength: request.ResponseContentLength,                      //【返回】大小
-		ResponseTime:          dorm.BsonTime(request.ResponseTime),                //【返回】时间
+		ResponseTime:          dorm.NewBsonTimeFromTime(request.ResponseTime),     //【返回】时间
 		SdkVersion:            sdkVersion,                                         //【程序】Sdk版本
 	}
-	if request.ResponseHeader.Get("Content-Type") == "image/jpeg" || request.ResponseHeader.Get("Content-Type") == "image/png" || request.ResponseHeader.Get("Content-Type") == "image/jpg" {
-		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddlewareXml.type]：%s %s", data.RequestUri, request.ResponseHeader.Get("Content-Type"))
+	if request.HeaderIsImg() {
+		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddlewareXml.type]：%s %s", data.RequestUri, request.ResponseHeader.Get("Content-Type"))
 	} else {
 		if len(request.ResponseBody) > 0 {
 			data.ResponseBody = dorm.XmlDecodeNoError(request.ResponseBody) //【返回】内容
 		} else {
 			if c.logDebug {
-				c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddlewareXml]：%s %s", data.RequestUri, request.ResponseBody)
+				c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddlewareXml]：%s %s", data.RequestUri, request.ResponseBody)
 			}
 		}
 	}
 
 	if c.logDebug {
-		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddlewareXml.data]：%+v", data)
+		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddlewareXml.data]：%+v", data)
 	}
 
 	err := c.mongoRecord(ctx, data)
 	if err != nil {
-		c.zapLog.WithTraceId(ctx).Sugar().Errorf("[golog.api.MongoMiddlewareXml]：%s", err.Error())
+		c.zapLog.WithTraceId(ctx).Sugar().Errorf("[golog.api.mongoMiddlewareXml]：%s", err.Error())
 	}
 }
 
-// MongoMiddlewareCustom 中间件
-func (c *ApiClient) MongoMiddlewareCustom(ctx context.Context, api string, request gorequest.Response, sdkVersion string) {
+// 中间件
+func (c *ApiClient) mongoMiddlewareCustom(ctx context.Context, api string, request gorequest.Response, sdkVersion string) {
 	data := apiMongolLog{
 		LogTime:               primitive.NewDateTimeFromTime(request.RequestTime), //【记录】时间
-		RequestTime:           dorm.BsonTime(request.RequestTime),                 //【请求】时间
+		RequestTime:           dorm.NewBsonTimeFromTime(request.RequestTime),      //【请求】时间
 		RequestUri:            request.RequestUri,                                 //【请求】链接
 		RequestUrl:            gourl.UriParse(request.RequestUri).Url,             //【请求】链接
 		RequestApi:            api,                                                //【请求】接口
@@ -291,27 +179,27 @@ func (c *ApiClient) MongoMiddlewareCustom(ctx context.Context, api string, reque
 		ResponseHeader:        request.ResponseHeader,                             //【返回】头部
 		ResponseStatusCode:    request.ResponseStatusCode,                         //【返回】状态码
 		ResponseContentLength: request.ResponseContentLength,                      //【返回】大小
-		ResponseTime:          dorm.BsonTime(request.ResponseTime),                //【返回】时间
+		ResponseTime:          dorm.NewBsonTimeFromTime(request.ResponseTime),     //【返回】时间
 		SdkVersion:            sdkVersion,                                         //【程序】Sdk版本
 	}
-	if request.ResponseHeader.Get("Content-Type") == "image/jpeg" || request.ResponseHeader.Get("Content-Type") == "image/png" || request.ResponseHeader.Get("Content-Type") == "image/jpg" {
-		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddlewareCustom.type]：%s %s", data.RequestUri, request.ResponseHeader.Get("Content-Type"))
+	if request.HeaderIsImg() {
+		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddlewareCustom.type]：%s %s", data.RequestUri, request.ResponseHeader.Get("Content-Type"))
 	} else {
 		if len(request.ResponseBody) > 0 {
 			data.ResponseBody = dorm.JsonDecodeNoError(request.ResponseBody) //【返回】内容
 		} else {
 			if c.logDebug {
-				c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.MongoMiddlewareCustom]：%s %s", data.RequestUri, request.ResponseBody)
+				c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddlewareCustom]：%s %s", data.RequestUri, request.ResponseBody)
 			}
 		}
 	}
 
 	if c.logDebug {
-		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoRecordJson.data]：%+v", data)
+		c.zapLog.WithTraceId(ctx).Sugar().Infof("[golog.api.mongoMiddlewareCustom.data]：%+v", data)
 	}
 
 	err := c.mongoRecord(ctx, data)
 	if err != nil {
-		c.zapLog.WithTraceId(ctx).Sugar().Errorf("[golog.api.MongoMiddlewareCustom]：%s", err.Error())
+		c.zapLog.WithTraceId(ctx).Sugar().Errorf("[golog.api.mongoMiddlewareCustom]：%s", err.Error())
 	}
 }

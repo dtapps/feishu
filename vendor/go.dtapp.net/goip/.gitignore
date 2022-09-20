@@ -6,3 +6,6 @@
 *.log
 *_test.go
 gomod.sh
+*.zip
+*.tar.gz
+/vendor/
