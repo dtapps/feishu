@@ -19,6 +19,9 @@ func (c *Client) request(ctx context.Context, url string, params map[string]inte
 	// 设置参数
 	client.SetParams(params)
 
+	// 传入SDk版本
+	client.AfferentSdkUserVersion(Version)
+
 	// 发起请求
 	request, err := client.Post(ctx)
 	if err != nil {
