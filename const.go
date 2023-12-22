@@ -6,5 +6,4 @@ const (
 
 const (
 	LogTable = "feishu"
-	Version  = "1.0.13"
 )
