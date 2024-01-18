@@ -1,8 +1,8 @@
 <h1>
-<a href="https://www.dtapp.net/">Golang FeiShu</a>
+<a href="https://www.dtapp.net/">Golang</a>
 </h1>
 
-📦 Golang FeiShu
+📦 Golang 飞书机器人
 
 [comment]: <> (go)
 [![godoc](https://pkg.go.dev/badge/go.dtapp.net/feishu?status.svg)](https://pkg.go.dev/go.dtapp.net/feishu)
@@ -13,5 +13,5 @@
 #### 安装
 
 ```shell
-go get -v -u go.dtapp.net/feishu@v1.0.14
+go get -v -u go.dtapp.net/feishu@v1.0.15
 ```
