@@ -31,11 +31,11 @@ func newWebhookSendResult(result WebhookSendResponse, body []byte, http goreques
 
 // WebhookSend 发送消息
 // https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN
-func (c *Client) WebhookSend(ctx context.Context, notMustParams ...gorequest.Params) (*WebhookSendResult, error) {
+func (c *Client) WebhookSend(ctx context.Context, key string, notMustParams ...gorequest.Params) (*WebhookSendResult, error) {
 	// 参数
 	params := gorequest.NewParamsWith(notMustParams...)
 	// 请求
-	request, err := c.request(ctx, apiUrl+fmt.Sprintf("/open-apis/bot/v2/hook/%s", c.GetKey()), params)
+	request, err := c.request(ctx, apiUrl+fmt.Sprintf("/open-apis/bot/v2/hook/%s", key), params)
 	if err != nil {
 		return newWebhookSendResult(WebhookSendResponse{}, request.ResponseBody, request), err
 	}
@@ -47,13 +47,13 @@ func (c *Client) WebhookSend(ctx context.Context, notMustParams ...gorequest.Par
 
 // WebhookSendSign 发送消息签名版
 // https://open.feishu.cn/document/ukTMukTMukTM/ucTM5YjL3ETO24yNxkjN
-func (c *Client) WebhookSendSign(ctx context.Context, secret string, notMustParams ...gorequest.Params) (*WebhookSendResult, error) {
+func (c *Client) WebhookSendSign(ctx context.Context, key string, secret string, notMustParams ...gorequest.Params) (*WebhookSendResult, error) {
 	// 参数
 	params := gorequest.NewParamsWith(notMustParams...)
 	params["timestamp"] = gotime.Current().Timestamp()
-	params["sign"], _ = c.genSign(secret, fmt.Sprintf("%v", params["timestamp"]))
+	params["sign"], _ = c.webhookSendSignGenSign(secret, fmt.Sprintf("%v", params["timestamp"]))
 	// 请求
-	request, err := c.request(ctx, apiUrl+fmt.Sprintf("/open-apis/bot/v2/hook/%s", c.GetKey()), params)
+	request, err := c.request(ctx, apiUrl+fmt.Sprintf("/open-apis/bot/v2/hook/%s", key), params)
 	if err != nil {
 		return newWebhookSendResult(WebhookSendResponse{}, request.ResponseBody, request), err
 	}
@@ -63,7 +63,7 @@ func (c *Client) WebhookSendSign(ctx context.Context, secret string, notMustPara
 	return newWebhookSendResult(response, request.ResponseBody, request), err
 }
 
-func (c *Client) genSign(secret string, timestamp string) (string, error) {
+func (c *Client) webhookSendSignGenSign(secret string, timestamp string) (string, error) {
 	//timestamp + key 做sha256, 再进行base64 encode
 	stringToSign := fmt.Sprintf("%v", timestamp) + "\n" + secret
 	var data []byte
