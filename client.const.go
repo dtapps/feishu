@@ -1,7 +1,7 @@
 package feishu
 
 const (
-	apiUrl = "https://open.feishu.cn"
+	apiUrl = "https://open.feishu.cn/"
 )
 
 const (
