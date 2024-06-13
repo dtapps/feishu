@@ -10,7 +10,7 @@ import (
 func (c *Client) request(ctx context.Context, url string, param gorequest.Params) (gorequest.Response, error) {
 
 	// 设置请求地址
-	c.httpClient.SetUri(url)
+	c.httpClient.SetUri(apiUrl + url)
 
 	// 设置格式
 	c.httpClient.SetContentTypeJson()

@@ -17,8 +17,8 @@ func (c *Client) SetTrace(trace bool) {
 // TraceStartSpan 开始OpenTelemetry链路追踪状态
 func (c *Client) TraceStartSpan(ctx context.Context, spanName string) context.Context {
 	if c.trace {
-		tr := otel.Tracer("go.dtapp.net/dayuanren", trace.WithInstrumentationVersion(Version))
-		ctx, c.span = tr.Start(ctx, "dayuanren."+spanName, trace.WithSpanKind(trace.SpanKindClient))
+		tr := otel.Tracer("go.dtapp.net/feishu", trace.WithInstrumentationVersion(Version))
+		ctx, c.span = tr.Start(ctx, "feishu."+spanName, trace.WithSpanKind(trace.SpanKindClient))
 	}
 	return ctx
 }
