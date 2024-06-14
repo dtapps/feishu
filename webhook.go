@@ -6,10 +6,8 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"fmt"
-	"go.dtapp.net/gojson"
 	"go.dtapp.net/gorequest"
 	"go.dtapp.net/gotime"
-	"go.opentelemetry.io/otel/codes"
 )
 
 type WebhookSendResponse struct {
@@ -35,27 +33,15 @@ func newWebhookSendResult(result WebhookSendResponse, body []byte, http goreques
 func (c *Client) WebhookSend(ctx context.Context, key string, notMustParams ...gorequest.Params) (*WebhookSendResult, error) {
 
 	// OpenTelemetry链路追踪
-	ctx = c.TraceStartSpan(ctx, "open-apis/bot/v2/hook")
+	ctx = c.TraceStartSpan(ctx, fmt.Sprintf("open-apis/bot/v2/hook/%s", key))
 	defer c.TraceEndSpan()
 
 	// 参数
 	params := gorequest.NewParamsWith(notMustParams...)
 
 	// 请求
-	request, err := c.request(ctx, fmt.Sprintf("open-apis/bot/v2/hook/%s", key), params)
-	if err != nil {
-		c.TraceRecordError(err)
-		c.TraceSetStatus(codes.Error, err.Error())
-		return newWebhookSendResult(WebhookSendResponse{}, request.ResponseBody, request), err
-	}
-
-	// 定义
 	var response WebhookSendResponse
-	err = gojson.Unmarshal(request.ResponseBody, &response)
-	if err != nil {
-		c.TraceRecordError(err)
-		c.TraceSetStatus(codes.Error, err.Error())
-	}
+	request, err := c.request(ctx, fmt.Sprintf("open-apis/bot/v2/hook/%s", key), params, &response)
 	return newWebhookSendResult(response, request.ResponseBody, request), err
 }
 
@@ -64,7 +50,7 @@ func (c *Client) WebhookSend(ctx context.Context, key string, notMustParams ...g
 func (c *Client) WebhookSendSign(ctx context.Context, key string, secret string, notMustParams ...gorequest.Params) (*WebhookSendResult, error) {
 
 	// OpenTelemetry链路追踪
-	ctx = c.TraceStartSpan(ctx, "open-apis/bot/v2/hook")
+	ctx = c.TraceStartSpan(ctx, fmt.Sprintf("open-apis/bot/v2/hook/%s", key))
 	defer c.TraceEndSpan()
 
 	// 参数
@@ -73,20 +59,8 @@ func (c *Client) WebhookSendSign(ctx context.Context, key string, secret string,
 	params["sign"], _ = c.webhookSendSignGenSign(secret, fmt.Sprintf("%v", params["timestamp"]))
 
 	// 请求
-	request, err := c.request(ctx, fmt.Sprintf("open-apis/bot/v2/hook/%s", key), params)
-	if err != nil {
-		c.TraceRecordError(err)
-		c.TraceSetStatus(codes.Error, err.Error())
-		return newWebhookSendResult(WebhookSendResponse{}, request.ResponseBody, request), err
-	}
-
-	// 定义
 	var response WebhookSendResponse
-	err = gojson.Unmarshal(request.ResponseBody, &response)
-	if err != nil {
-		c.TraceRecordError(err)
-		c.TraceSetStatus(codes.Error, err.Error())
-	}
+	request, err := c.request(ctx, fmt.Sprintf("open-apis/bot/v2/hook/%s", key), params, &response)
 	return newWebhookSendResult(response, request.ResponseBody, request), err
 }
 
